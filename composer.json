@@ -1,0 +1,24 @@
+{
+    "name": "soc-ext-affairs/reservation-data-analysis",
+    "type": "wordpress-plugin",
+    "autoload": {
+        "psr-4": {
+            "SocExtAffairs\\ReservationDataAnalysis\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "RA",
+            "email": "rgoodie@users.noreply.github.com"
+        }
+    ],
+    "require": {
+        "symfony/dependency-injection": "^6.0",
+        "symfony/config": "^6.0",
+        "symfony/yaml": "^6.0",
+        "doctrine/orm": "^2.14",
+        "doctrine/dbal": "^3.6",
+        "twig/twig": "^3.0",
+        "phpoffice/phpspreadsheet": "^5.1"
+    }
+}

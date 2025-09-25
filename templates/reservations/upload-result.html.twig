@@ -1,0 +1,51 @@
+<div class="wrap">
+    <h1>Upload Results</h1>
+    
+    <div class="notice notice-success">
+        <p><strong>Upload completed successfully!</strong></p>
+    </div>
+    
+    <div class="card">
+        <h2>Summary Statistics</h2>
+        <table class="wp-list-table widefat fixed striped">
+            <tbody>
+                <tr>
+                    <td><strong>Total Rows Processed:</strong></td>
+                    <td>{{ total_rows }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Successfully Inserted:</strong></td>
+                    <td style="color: green;"><strong>{{ inserted }}</strong></td>
+                </tr>
+                <tr>
+                    <td><strong>Duplicates Prevented:</strong></td>
+                    <td style="color: orange;"><strong>{{ duplicates }}</strong></td>
+                </tr>
+                <tr>
+                    <td><strong>Errors:</strong></td>
+                    <td style="color: red;"><strong>{{ errors }}</strong></td>
+                </tr>
+                <tr>
+                    <td><strong>Success Rate:</strong></td>
+                    <td>{{ total_rows > 0 ? ((inserted / total_rows) * 100)|round(1) : 0 }}%</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    {% if error_details %}
+    <div class="card">
+        <h2>Error Details</h2>
+        <ul style="color: red;">
+            {% for error in error_details %}
+            <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    <p>
+        <a href="{{ admin_url('admin.php?page=reservations') }}" class="button button-primary">View All Reservations</a>
+        <a href="{{ admin_url('admin.php?page=reservations&action=upload') }}" class="button">Upload Another File</a>
+    </p>
+</div>

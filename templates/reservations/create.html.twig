@@ -1,0 +1,32 @@
+<div class="wrap">
+    <h1>Add New Reservation</h1>
+    
+    <form method="post" action="{{ admin_url('admin-post.php') }}">
+        <input type="hidden" name="action" value="create_reservation">
+        {{ wp_nonce_field('create_reservation')|raw }}
+        
+        <table class="form-table">
+            <tr>
+                <th><label for="groupName">Group Name</label></th>
+                <td><input type="text" id="groupName" name="groupName" class="regular-text" required></td>
+            </tr>
+            <tr>
+                <th><label for="dateOfEvent">Date of Event</label></th>
+                <td><input type="date" id="dateOfEvent" name="dateOfEvent" class="regular-text" required></td>
+            </tr>
+            <tr>
+                <th><label for="locationName">Location</label></th>
+                <td><input type="text" id="locationName" name="locationName" class="regular-text" required></td>
+            </tr>
+            <tr>
+                <th><label for="duration">Duration (hours)</label></th>
+                <td><input type="number" id="duration" name="duration" class="regular-text" required></td>
+            </tr>
+        </table>
+        
+        <p class="submit">
+            <input type="submit" class="button-primary" value="Create Reservation">
+            <a href="{{ admin_url('admin.php?page=reservations') }}" class="button">Cancel</a>
+        </p>
+    </form>
+</div>

@@ -1,0 +1,73 @@
+<div class="wrap">
+    <h1>Reservations</h1>
+    <a href="{{ admin_url('admin.php?page=reservations&action=create') }}" class="button button-primary">Add New</a>
+    <a href="{{ admin_url('admin.php?page=reservations&action=upload') }}" class="button">Bulk Upload</a>
+    {% if reservations %}
+    <form method="post" action="{{ admin_url('admin-post.php') }}" style="display:inline;">
+        <input type="hidden" name="action" value="remove_all_reservations">
+        {{ wp_nonce_field('remove_all_reservations')|raw }}
+        <input type="submit" value="Remove All" class="button button-secondary" onclick="return confirm('Are you sure you want to delete ALL reservations? This cannot be undone!')" style="margin-left: 10px;">
+    </form>
+    {% endif %}
+    
+    {% if reservations %}
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th><a href="{{ admin_url('admin.php?page=reservations&orderby=groupName&order=' ~ (orderby == 'groupName' and order == 'asc' ? 'desc' : 'asc') ~ (current_page > 1 ? '&paged=' ~ current_page : '')) }}">Group Name</a></th>
+                    <th><a href="{{ admin_url('admin.php?page=reservations&orderby=dateOfEvent&order=' ~ (orderby == 'dateOfEvent' and order == 'asc' ? 'desc' : 'asc') ~ (current_page > 1 ? '&paged=' ~ current_page : '')) }}">Date</a></th>
+                    <th><a href="{{ admin_url('admin.php?page=reservations&orderby=locationName&order=' ~ (orderby == 'locationName' and order == 'asc' ? 'desc' : 'asc') ~ (current_page > 1 ? '&paged=' ~ current_page : '')) }}">Location</a></th>
+                    <th><a href="{{ admin_url('admin.php?page=reservations&orderby=duration&order=' ~ (orderby == 'duration' and order == 'asc' ? 'desc' : 'asc') ~ (current_page > 1 ? '&paged=' ~ current_page : '')) }}">Duration</a></th>
+                    <th>Hash</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reservation in reservations %}
+                <tr>
+                    <td>{{ reservation.groupName }}</td>
+                    <td>{{ reservation.dateOfEvent }}</td>
+                    <td>{{ reservation.locationName }}</td>
+                    <td>{{ reservation.duration }} hrs</td>
+                    <td>{{ reservation.hash[:8] }}...</td>
+                    <td>
+                        <a href="{{ admin_url('admin.php?page=reservations&action=edit&id=' ~ reservation.id) }}" class="button">Edit</a>
+                        <form method="post" action="{{ admin_url('admin-post.php') }}" style="display:inline;">
+                            <input type="hidden" name="action" value="delete_reservation">
+                            <input type="hidden" name="id" value="{{ reservation.id }}">
+                            {{ wp_nonce_field('delete_reservation')|raw }}
+                            <input type="submit" value="Delete" class="button" onclick="return confirm('Are you sure?')">
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No reservations found.</p>
+    {% endif %}
+    
+    {% if total_pages > 1 %}
+    <div class="tablenav">
+        <div class="tablenav-pages">
+            <span class="displaying-num">{{ total_items }} items</span>
+            {% set sort_params = orderby ? '&orderby=' ~ orderby ~ '&order=' ~ order : '' %}
+            {% if current_page > 1 %}
+                <a class="prev-page button" href="{{ admin_url('admin.php?page=reservations&paged=' ~ (current_page - 1) ~ sort_params) }}">‹</a>
+            {% endif %}
+            
+            {% for page_num in 1..total_pages %}
+                {% if page_num == current_page %}
+                    <span class="current-page">{{ page_num }}</span>
+                {% else %}
+                    <a class="page-numbers" href="{{ admin_url('admin.php?page=reservations&paged=' ~ page_num ~ sort_params) }}">{{ page_num }}</a>
+                {% endif %}
+            {% endfor %}
+            
+            {% if current_page < total_pages %}
+                <a class="next-page button" href="{{ admin_url('admin.php?page=reservations&paged=' ~ (current_page + 1) ~ sort_params) }}">›</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>

@@ -1,0 +1,164 @@
+<div class="wrap">
+    <h1>Reservation Reports</h1>
+    
+    <div class="nav-tab-wrapper">
+        <a href="{{ admin_url('admin.php?page=reservations') }}" class="nav-tab">All Reservations</a>
+        <a href="{{ admin_url('admin.php?page=reservation-reports') }}" class="nav-tab nav-tab-active">Reports</a>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <p><strong>Total Reservations:</strong> {{ total_reservations }}</p>
+    </div>
+
+    <p style="color: #666; font-style: italic; margin-top: 10px;">💡 Click on group names below to see which spaces they use</p>
+    
+    <div style="display: flex; gap: 40px; margin-top: 30px;">
+        <div style="flex: 1;">
+            <h2>Which groups use the most time?</h2>
+            <div style="width: 300px; height: 300px; margin: 20px auto;">
+                <canvas id="groupChart"></canvas>
+            </div>
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th>Group Name</th>
+                        <th>Total Hours</th>
+                        <th>Bookings</th>
+                        <th>Avg Hours/Booking</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group, data in group_usage %}
+                    <tr>
+                        <td><strong><a href="#" onclick="showGroupSpaces('{{ group|e('js') }}'); return false;" style="color: #0073aa; text-decoration: none;">{{ group }}</a></strong></td>
+                        <td>{{ data.total_time }}</td>
+                        <td>{{ data.bookings }}</td>
+                        <td>{{ (data.total_time / data.bookings)|round(1) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div style="flex: 1;">
+            <h2>Which spaces are used the most?</h2>
+            <div style="width: 300px; height: 300px; margin: 20px auto;">
+                <canvas id="spaceChart"></canvas>
+            </div>
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Total Hours</th>
+                        <th>Bookings</th>
+                        <th>Avg Hours/Booking</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for location, data in space_usage %}
+                    <tr>
+                        <td><strong>{{ location }}</strong></td>
+                        <td>{{ data.total_time }}</td>
+                        <td>{{ data.bookings }}</td>
+                        <td>{{ (data.total_time / data.bookings)|round(1) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Group usage pie chart
+const groupCtx = document.getElementById('groupChart').getContext('2d');
+new Chart(groupCtx, {
+    type: 'pie',
+    data: {
+        labels: [{% for group, data in group_usage %}'{{ group|e('js') }}'{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            data: [{% for group, data in group_usage %}{{ data.total_time }}{% if not loop.last %},{% endif %}{% endfor %}],
+            backgroundColor: [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: { position: 'bottom' }
+        }
+    }
+});
+
+// Space usage pie chart
+const spaceCtx = document.getElementById('spaceChart').getContext('2d');
+new Chart(spaceCtx, {
+    type: 'pie',
+    data: {
+        labels: [{% for location, data in space_usage %}'{{ location|e('js') }}'{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            data: [{% for location, data in space_usage %}{{ data.total_time }}{% if not loop.last %},{% endif %}{% endfor %}],
+            backgroundColor: [
+                '#36A2EB', '#FF6384', '#4BC0C0', '#FFCE56', '#9966FF',
+                '#FF9F40', '#C9CBCF', '#FF6384', '#4BC0C0', '#36A2EB'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: { position: 'bottom' }
+        }
+    }
+});
+
+// Group space usage data
+const groupSpaceData = {
+    {% for group, spaces in group_space_usage %}
+    '{{ group|e('js') }}': {
+        {% for location, data in spaces %}
+        '{{ location|e('js') }}': { total_time: {{ data.total_time }}, bookings: {{ data.bookings }} }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+function showGroupSpaces(groupName) {
+    const spaces = groupSpaceData[groupName];
+    if (!spaces) return;
+    
+    let html = `<div style="background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 500px;">`;
+    html += `<h3 style="margin-top: 0; color: #23282d;">${groupName} - Space Usage</h3>`;
+    html += `<table style="width: 100%; border-collapse: collapse;">`;
+    html += `<thead><tr style="background: #f1f1f1;"><th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Location</th><th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Hours</th><th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Bookings</th></tr></thead><tbody>`;
+    
+    Object.entries(spaces).forEach(([location, data]) => {
+        html += `<tr><td style="padding: 8px; border: 1px solid #ddd;">${location}</td><td style="padding: 8px; border: 1px solid #ddd;">${data.total_time}</td><td style="padding: 8px; border: 1px solid #ddd;">${data.bookings}</td></tr>`;
+    });
+    
+    html += `</tbody></table>`;
+    html += `<div style="text-align: right; margin-top: 15px;"><button onclick="closeModal()" style="background: #0073aa; color: white; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer;">Close</button></div>`;
+    html += `</div>`;
+    
+    const modal = document.createElement('div');
+    modal.id = 'groupModal';
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+    modal.innerHTML = html;
+    
+    document.body.appendChild(modal);
+    
+    modal.onclick = function(e) {
+        if (e.target === modal) closeModal();
+    };
+}
+
+function closeModal() {
+    const modal = document.getElementById('groupModal');
+    if (modal) modal.remove();
+}
+</script>
