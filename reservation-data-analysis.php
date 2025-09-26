@@ -359,6 +359,12 @@ function processExcelUpload(array $file, array $params): array {
                 }
                 $duration = intval(preg_replace('/[^0-9.]/', '', (string)$durationValue));
                 
+                // Skip empty rows (all fields empty)
+                if (empty($groupName) && empty($dateOfEvent) && empty($locationName) && $duration <= 0) {
+                    $stats['total_rows']--; // Don't count empty rows
+                    continue;
+                }
+                
                 $errors = [];
                 if (empty($groupName)) $errors[] = "Group Name is missing (value: '{$groupName}')";
                 if (empty($dateOfEvent)) $errors[] = "Event Date is missing (value: '{$dateOfEvent}')";
