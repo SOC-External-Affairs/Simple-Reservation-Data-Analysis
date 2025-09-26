@@ -22,15 +22,17 @@ This plugin provides a complete reservation management system for organizations 
 
 **📁 Bulk Data Import**
 - Excel file upload with column mapping
-- Duplicate detection and prevention
+- Duplicate detection and prevention with detailed counts
 - Error reporting with specific cell references
-- Batch processing with detailed statistics
+- Batch processing with comprehensive statistics
+- Automatic cleanup of uploaded files
 
 **🎨 Professional Interface**
 - WordPress admin theme integration
 - Twig templating for clean, maintainable views
 - Responsive design with Chart.js visualizations
 - Admin bar quick access menus
+- Built-in system testing dashboard
 
 ## Technical Architecture
 
@@ -86,8 +88,9 @@ reservation-data-analysis/
 │       ├── create.html.twig         # Add new reservation form
 │       ├── edit.html.twig           # Edit existing reservation
 │       ├── upload.html.twig         # Excel upload interface
-│       ├── upload-result.html.twig  # Upload results display
-│       └── reports.html.twig        # Analytics dashboard
+│       ├── upload-result.html.twig  # Upload results with duplicate details
+│       ├── reports.html.twig        # Analytics dashboard
+│       └── tests.html.twig          # System testing interface
 ├── vendor/                          # Composer dependencies
 ├── composer.json                    # Dependency configuration
 └── reservation-data-analysis.php    # Main plugin file
@@ -110,7 +113,10 @@ reservation-data-analysis/
 ### Bulk Upload
 - Go to Reservations → Bulk Upload
 - Upload Excel file and map columns
-- Review results and error reports
+- Review detailed results including:
+  - Duplicate counts with row numbers
+  - Error reports with cell references
+  - Success statistics
 
 ### Viewing Reports
 - Access Reservations → Reports
@@ -121,6 +127,15 @@ reservation-data-analysis/
 - Use main reservations page for CRUD operations
 - Sort by any column (group, date, location, duration)
 - Navigate through pages while maintaining sort order
+
+### System Testing
+- Access Reservations → Tests for system diagnostics
+- Run comprehensive tests covering:
+  - Database connectivity
+  - ORM functionality
+  - Template rendering
+  - File upload capabilities
+  - Security validation
 
 ## Target Use Cases
 
