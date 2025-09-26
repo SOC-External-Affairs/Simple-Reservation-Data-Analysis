@@ -1,0 +1,49 @@
+<div class="wrap">
+    <h1>System Tests</h1>
+    
+    {% if test_results %}
+        <div class="test-results">
+            <h2>Test Results ({{ test_results.passed }}/{{ test_results.total }} passed)</h2>
+            
+            {% for test in test_results.tests %}
+                <div class="test-item {{ test.status }}">
+                    <h3>{{ test.name }}</h3>
+                    <p><strong>Status:</strong> {{ test.status|upper }}</p>
+                    <p><strong>Message:</strong> {{ test.message }}</p>
+                    {% if test.details %}
+                        <details>
+                            <summary>Details</summary>
+                            <pre>{{ test.details }}</pre>
+                        </details>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <form method="post">
+            {{ nonce_field|raw }}
+            <p>Click the button below to run all system tests:</p>
+            <input type="submit" name="run_tests" class="button button-primary" value="Run Tests">
+        </form>
+    {% endif %}
+</div>
+
+<style>
+.test-item {
+    margin: 10px 0;
+    padding: 15px;
+    border-left: 4px solid #ccc;
+}
+.test-item.passed {
+    border-left-color: #46b450;
+    background: #f7fcf0;
+}
+.test-item.failed {
+    border-left-color: #dc3232;
+    background: #fef7f1;
+}
+.test-item.warning {
+    border-left-color: #ffb900;
+    background: #fff8e5;
+}
+</style>

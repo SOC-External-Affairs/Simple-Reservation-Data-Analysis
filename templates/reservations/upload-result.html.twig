@@ -33,6 +33,17 @@
         </table>
     </div>
     
+    {% if duplicate_counts %}
+    <div class="card">
+        <h2>Duplicate Records Prevented</h2>
+        <ul style="color: orange;">
+            {% for record, data in duplicate_counts %}
+            <li><strong>{{ data.count }}x</strong> - {{ record }} (Rows: {{ data.rows|join(', ') }})</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    
     {% if error_details %}
     <div class="card">
         <h2>Error Details</h2>

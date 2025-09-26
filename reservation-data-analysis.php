@@ -6,9 +6,15 @@
  * Author: RA
  */
 
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH')) {
+    return;
+}
 
-require_once __DIR__ . '/vendor/autoload.php';
+$autoload_path = plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+if (!file_exists($autoload_path) || !is_readable($autoload_path)) {
+    wp_die('Required dependencies not found.');
+}
+require_once $autoload_path;
 
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
@@ -41,13 +47,19 @@ add_action('admin_menu', function() use ($twig) {
         'manage_options',
         'reservations',
         function() use ($twig) {
-            $action = $_GET['action'] ?? 'index';
+            $action = sanitize_text_field($_GET['action'] ?? 'index');
             
             if ($action === 'create') {
                 echo $twig->render('reservations/create.html.twig');
             } elseif ($action === 'edit') {
-                $reservation = getReservation($_GET['id']);
-                echo $twig->render('reservations/edit.html.twig', ['reservation' => $reservation]);
+                $id = intval($_GET['id'] ?? 0);
+                if ($id > 0) {
+                    $reservation = getReservation($id);
+                    echo $twig->render('reservations/edit.html.twig', ['reservation' => $reservation]);
+                } else {
+                    wp_safe_redirect(admin_url('admin.php?page=reservations'));
+                    return;
+                }
             } elseif ($action === 'upload') {
                 echo $twig->render('reservations/upload.html.twig');
             } elseif ($action === 'upload_result') {
@@ -82,6 +94,24 @@ add_action('admin_menu', function() use ($twig) {
             echo $twig->render('reservations/reports.html.twig', $reports);
         }
     );
+    
+    add_submenu_page(
+        'reservations',
+        'System Tests',
+        'Tests',
+        'manage_options',
+        'reservation-tests',
+        function() use ($twig) {
+            $test_results = null;
+            if (isset($_POST['run_tests']) && wp_verify_nonce($_POST['_wpnonce'], 'run_tests')) {
+                $test_results = runSystemTests();
+            }
+            echo $twig->render('reservations/tests.html.twig', [
+                'test_results' => $test_results,
+                'nonce_field' => wp_nonce_field('run_tests', '_wpnonce', true, false)
+            ]);
+        }
+    );
 });
 
 // Admin bar menu
@@ -114,6 +144,13 @@ add_action('admin_bar_menu', function($wp_admin_bar) {
         'title' => 'Reports',
         'href' => admin_url('admin.php?page=reservation-reports')
     ]);
+    
+    $wp_admin_bar->add_menu([
+        'id' => 'reservations-tests',
+        'parent' => 'reservations',
+        'title' => 'Tests',
+        'href' => admin_url('admin.php?page=reservation-tests')
+    ]);
 }, 100);
 
 // Handle form submissions
@@ -130,8 +167,8 @@ add_action('admin_post_create_reservation', function() {
     );
     
     saveReservation($reservation);
-    wp_redirect(admin_url('admin.php?page=reservations&message=created'));
-    exit;
+    wp_safe_redirect(admin_url('admin.php?page=reservations&message=created'));
+    return;
 });
 
 add_action('admin_post_update_reservation', function() {
@@ -147,8 +184,8 @@ add_action('admin_post_update_reservation', function() {
         intval($_POST['duration'])
     );
     
-    wp_redirect(admin_url('admin.php?page=reservations&message=updated'));
-    exit;
+    wp_safe_redirect(admin_url('admin.php?page=reservations&message=updated'));
+    return;
 });
 
 add_action('admin_post_delete_reservation', function() {
@@ -157,8 +194,8 @@ add_action('admin_post_delete_reservation', function() {
     }
     
     deleteReservation(intval($_POST['id']));
-    wp_redirect(admin_url('admin.php?page=reservations&message=deleted'));
-    exit;
+    wp_safe_redirect(admin_url('admin.php?page=reservations&message=deleted'));
+    return;
 });
 
 add_action('admin_post_remove_all_reservations', function() {
@@ -167,8 +204,8 @@ add_action('admin_post_remove_all_reservations', function() {
     }
     
     $count = removeAllReservations();
-    wp_redirect(admin_url('admin.php?page=reservations&message=removed_all&count=' . $count));
-    exit;
+    wp_safe_redirect(admin_url('admin.php?page=reservations&message=removed_all&count=' . $count));
+    return;
 });
 
 add_action('admin_post_upload_reservations', function() use ($twig) {
@@ -179,8 +216,8 @@ add_action('admin_post_upload_reservations', function() use ($twig) {
     $result = processExcelUpload($_FILES['excel_file'], $_POST);
     
     set_transient('upload_result_' . get_current_user_id(), $result, 300);
-    wp_redirect(admin_url('admin.php?page=reservations&action=upload_result'));
-    exit;
+    wp_safe_redirect(admin_url('admin.php?page=reservations&action=upload_result'));
+    return;
 });
 
 // Simple ORM functions
@@ -336,7 +373,9 @@ function processExcelUpload(array $file, array $params): array {
         'inserted' => 0,
         'duplicates' => 0,
         'errors' => 0,
-        'error_details' => []
+        'error_details' => [],
+        'duplicate_details' => [],
+        'duplicate_counts' => []
     ];
     
     try {
@@ -381,6 +420,12 @@ function processExcelUpload(array $file, array $params): array {
                 
                 if (in_array($reservation->getHash(), $existingHashes)) {
                     $stats['duplicates']++;
+                    $duplicate_key = "{$groupName} | {$dateOfEvent} | {$locationName} | {$duration}hrs";
+                    if (!isset($stats['duplicate_counts'][$duplicate_key])) {
+                        $stats['duplicate_counts'][$duplicate_key] = ['count' => 0, 'rows' => []];
+                    }
+                    $stats['duplicate_counts'][$duplicate_key]['count']++;
+                    $stats['duplicate_counts'][$duplicate_key]['rows'][] = $row;
                     continue;
                 }
                 
@@ -397,6 +442,11 @@ function processExcelUpload(array $file, array $params): array {
     } catch (Exception $e) {
         $stats['errors']++;
         $stats['error_details'][] = 'File processing error: ' . $e->getMessage();
+    }
+    
+    // Clean up uploaded file
+    if (file_exists($file['tmp_name'])) {
+        unlink($file['tmp_name']);
     }
     
     return $stats;
@@ -477,4 +527,227 @@ function generateReports(): array {
         'space_usage' => $spaceUsage,
         'total_reservations' => count($reservations)
     ];
+}
+
+function runSystemTests(): array {
+    $tests = [];
+    $passed = 0;
+    
+    // Test 1: Database connectivity
+    $tests[] = testDatabaseConnectivity();
+    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
+    
+    // Test 2: ORM functionality
+    $tests[] = testOrmFunctionality();
+    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
+    
+    // Test 3: Template rendering
+    $tests[] = testTemplateRendering();
+    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
+    
+    // Test 4: File upload capabilities
+    $tests[] = testFileUploadCapabilities();
+    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
+    
+    // Test 5: Security checks
+    $tests[] = testSecurityChecks();
+    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
+    
+    return [
+        'tests' => $tests,
+        'passed' => $passed,
+        'total' => count($tests)
+    ];
+}
+
+function testDatabaseConnectivity(): array {
+    try {
+        global $wpdb;
+        $result = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'reservation_data'");
+        return [
+            'name' => 'Database Connectivity',
+            'status' => 'passed',
+            'message' => "Successfully connected. Found {$result} reservation records.",
+            'details' => "Query executed: SELECT COUNT(*) FROM {$wpdb->posts}"
+        ];
+    } catch (Exception $e) {
+        return [
+            'name' => 'Database Connectivity',
+            'status' => 'failed',
+            'message' => 'Database connection failed: ' . $e->getMessage(),
+            'details' => $e->getTraceAsString()
+        ];
+    }
+}
+
+function testOrmFunctionality(): array {
+    try {
+        // Create test reservation
+        $testReservation = new Reservation('Test Group', '2024-01-01', 'Test Location', 2);
+        $originalCount = count(getAllReservations());
+        
+        saveReservation($testReservation);
+        $newCount = count(getAllReservations());
+        
+        if ($newCount === $originalCount + 1) {
+            // Clean up
+            $reservations = getAllReservations();
+            foreach ($reservations as $res) {
+                if ($res->getGroupName() === 'Test Group') {
+                    deleteReservation($res->getId());
+                    break;
+                }
+            }
+            
+            return [
+                'name' => 'ORM Functionality',
+                'status' => 'passed',
+                'message' => 'CRUD operations working correctly',
+                'details' => "Created and deleted test reservation. Count: {$originalCount} -> {$newCount} -> " . count(getAllReservations())
+            ];
+        } else {
+            return [
+                'name' => 'ORM Functionality',
+                'status' => 'failed',
+                'message' => 'Save operation failed',
+                'details' => "Expected count increase from {$originalCount} to " . ($originalCount + 1) . ", got {$newCount}"
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            'name' => 'ORM Functionality',
+            'status' => 'failed',
+            'message' => 'ORM test failed: ' . $e->getMessage(),
+            'details' => $e->getTraceAsString()
+        ];
+    }
+}
+
+function testTemplateRendering(): array {
+    try {
+        global $twig;
+        $output = $twig->render('reservations/create.html.twig');
+        
+        if (strpos($output, 'Group Name') !== false && strpos($output, 'form') !== false) {
+            return [
+                'name' => 'Template Rendering',
+                'status' => 'passed',
+                'message' => 'Twig templates rendering correctly',
+                'details' => 'Successfully rendered create.html.twig with expected content'
+            ];
+        } else {
+            return [
+                'name' => 'Template Rendering',
+                'status' => 'failed',
+                'message' => 'Template content missing expected elements',
+                'details' => 'Output length: ' . strlen($output) . ' characters'
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            'name' => 'Template Rendering',
+            'status' => 'failed',
+            'message' => 'Template rendering failed: ' . $e->getMessage(),
+            'details' => $e->getTraceAsString()
+        ];
+    }
+}
+
+function testFileUploadCapabilities(): array {
+    try {
+        $uploadDir = wp_upload_dir();
+        $testFile = $uploadDir['basedir'] . '/test_write.txt';
+        
+        if (file_put_contents($testFile, 'test') !== false) {
+            unlink($testFile);
+            
+            // Check if PhpSpreadsheet is available
+            if (class_exists('PhpOffice\PhpSpreadsheet\IOFactory')) {
+                return [
+                    'name' => 'File Upload Capabilities',
+                    'status' => 'passed',
+                    'message' => 'File system writable and PhpSpreadsheet available',
+                    'details' => "Upload directory: {$uploadDir['basedir']}"
+                ];
+            } else {
+                return [
+                    'name' => 'File Upload Capabilities',
+                    'status' => 'warning',
+                    'message' => 'File system writable but PhpSpreadsheet missing',
+                    'details' => 'Excel upload functionality may not work'
+                ];
+            }
+        } else {
+            return [
+                'name' => 'File Upload Capabilities',
+                'status' => 'failed',
+                'message' => 'Upload directory not writable',
+                'details' => "Cannot write to: {$uploadDir['basedir']}"
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            'name' => 'File Upload Capabilities',
+            'status' => 'failed',
+            'message' => 'File upload test failed: ' . $e->getMessage(),
+            'details' => $e->getTraceAsString()
+        ];
+    }
+}
+
+function testSecurityChecks(): array {
+    try {
+        $checks = [];
+        
+        // Check if user has proper capabilities
+        if (current_user_can('manage_options')) {
+            $checks[] = 'User capabilities: OK';
+        } else {
+            $checks[] = 'User capabilities: FAILED';
+        }
+        
+        // Check nonce functionality
+        $nonce = wp_create_nonce('test_action');
+        if (wp_verify_nonce($nonce, 'test_action')) {
+            $checks[] = 'Nonce verification: OK';
+        } else {
+            $checks[] = 'Nonce verification: FAILED';
+        }
+        
+        // Check sanitization functions
+        $test_input = '<script>alert("xss")</script>';
+        $sanitized = sanitize_text_field($test_input);
+        if ($sanitized !== $test_input) {
+            $checks[] = 'Input sanitization: OK';
+        } else {
+            $checks[] = 'Input sanitization: FAILED';
+        }
+        
+        $failed = array_filter($checks, function($check) {
+            return strpos($check, 'FAILED') !== false;
+        });
+        
+        if (empty($failed)) {
+            return [
+                'name' => 'Security Checks',
+                'status' => 'passed',
+                'message' => 'All security checks passed',
+                'details' => implode("\n", $checks)
+            ];
+        } else {
+            return [
+                'name' => 'Security Checks',
+                'status' => 'failed',
+                'message' => count($failed) . ' security check(s) failed',
+                'details' => implode("\n", $checks)
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            'name' => 'Security Checks',
+            'status' => 'failed',
+            'message' => 'Security test failed: ' . $e->getMessage(),
+            'details' => $e->getTraceAsString()
+        ];
+    }
 }
