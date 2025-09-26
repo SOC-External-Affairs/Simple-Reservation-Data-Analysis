@@ -20,6 +20,7 @@ use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 use Twig\TwigFunction;
 use SocExtAffairs\ReservationDataAnalysis\Entity\Reservation;
+use SocExtAffairs\ReservationDataAnalysis\Tests\WebTests;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 // Setup Twig
@@ -29,6 +30,20 @@ $twig->addFunction(new TwigFunction('admin_url', 'admin_url'));
 $twig->addFunction(new TwigFunction('wp_nonce_field', function($action, $name = '_wpnonce') {
     return wp_nonce_field($action, $name, true, false);
 }, ['is_safe' => ['html']]));
+
+// Plugin activation hook
+register_activation_hook(__FILE__, function() {
+    $plugin_dir = plugin_dir_path(__FILE__);
+    
+    // Run composer update if composer.json exists
+    if (file_exists($plugin_dir . 'composer.json')) {
+        $composer_cmd = 'cd ' . escapeshellarg($plugin_dir) . ' && composer install --no-dev --optimize-autoloader 2>&1';
+        $output = shell_exec($composer_cmd);
+        
+        // Log result for debugging
+        error_log('Composer install output: ' . $output);
+    }
+});
 
 // Register post type
 add_action('init', function() {
@@ -104,7 +119,8 @@ add_action('admin_menu', function() use ($twig) {
         function() use ($twig) {
             $test_results = null;
             if (isset($_POST['run_tests']) && wp_verify_nonce($_POST['_wpnonce'], 'run_tests')) {
-                $test_results = runSystemTests();
+                $webTests = new WebTests($twig);
+                $test_results = $webTests->runAll();
             }
             echo $twig->render('reservations/tests.html.twig', [
                 'test_results' => $test_results,
@@ -529,225 +545,3 @@ function generateReports(): array {
     ];
 }
 
-function runSystemTests(): array {
-    $tests = [];
-    $passed = 0;
-    
-    // Test 1: Database connectivity
-    $tests[] = testDatabaseConnectivity();
-    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
-    
-    // Test 2: ORM functionality
-    $tests[] = testOrmFunctionality();
-    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
-    
-    // Test 3: Template rendering
-    $tests[] = testTemplateRendering();
-    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
-    
-    // Test 4: File upload capabilities
-    $tests[] = testFileUploadCapabilities();
-    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
-    
-    // Test 5: Security checks
-    $tests[] = testSecurityChecks();
-    if ($tests[count($tests)-1]['status'] === 'passed') $passed++;
-    
-    return [
-        'tests' => $tests,
-        'passed' => $passed,
-        'total' => count($tests)
-    ];
-}
-
-function testDatabaseConnectivity(): array {
-    try {
-        global $wpdb;
-        $result = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'reservation_data'");
-        return [
-            'name' => 'Database Connectivity',
-            'status' => 'passed',
-            'message' => "Successfully connected. Found {$result} reservation records.",
-            'details' => "Query executed: SELECT COUNT(*) FROM {$wpdb->posts}"
-        ];
-    } catch (Exception $e) {
-        return [
-            'name' => 'Database Connectivity',
-            'status' => 'failed',
-            'message' => 'Database connection failed: ' . $e->getMessage(),
-            'details' => $e->getTraceAsString()
-        ];
-    }
-}
-
-function testOrmFunctionality(): array {
-    try {
-        // Create test reservation
-        $testReservation = new Reservation('Test Group', '2024-01-01', 'Test Location', 2);
-        $originalCount = count(getAllReservations());
-        
-        saveReservation($testReservation);
-        $newCount = count(getAllReservations());
-        
-        if ($newCount === $originalCount + 1) {
-            // Clean up
-            $reservations = getAllReservations();
-            foreach ($reservations as $res) {
-                if ($res->getGroupName() === 'Test Group') {
-                    deleteReservation($res->getId());
-                    break;
-                }
-            }
-            
-            return [
-                'name' => 'ORM Functionality',
-                'status' => 'passed',
-                'message' => 'CRUD operations working correctly',
-                'details' => "Created and deleted test reservation. Count: {$originalCount} -> {$newCount} -> " . count(getAllReservations())
-            ];
-        } else {
-            return [
-                'name' => 'ORM Functionality',
-                'status' => 'failed',
-                'message' => 'Save operation failed',
-                'details' => "Expected count increase from {$originalCount} to " . ($originalCount + 1) . ", got {$newCount}"
-            ];
-        }
-    } catch (Exception $e) {
-        return [
-            'name' => 'ORM Functionality',
-            'status' => 'failed',
-            'message' => 'ORM test failed: ' . $e->getMessage(),
-            'details' => $e->getTraceAsString()
-        ];
-    }
-}
-
-function testTemplateRendering(): array {
-    try {
-        global $twig;
-        $output = $twig->render('reservations/create.html.twig');
-        
-        if (strpos($output, 'Group Name') !== false && strpos($output, 'form') !== false) {
-            return [
-                'name' => 'Template Rendering',
-                'status' => 'passed',
-                'message' => 'Twig templates rendering correctly',
-                'details' => 'Successfully rendered create.html.twig with expected content'
-            ];
-        } else {
-            return [
-                'name' => 'Template Rendering',
-                'status' => 'failed',
-                'message' => 'Template content missing expected elements',
-                'details' => 'Output length: ' . strlen($output) . ' characters'
-            ];
-        }
-    } catch (Exception $e) {
-        return [
-            'name' => 'Template Rendering',
-            'status' => 'failed',
-            'message' => 'Template rendering failed: ' . $e->getMessage(),
-            'details' => $e->getTraceAsString()
-        ];
-    }
-}
-
-function testFileUploadCapabilities(): array {
-    try {
-        $uploadDir = wp_upload_dir();
-        $testFile = $uploadDir['basedir'] . '/test_write.txt';
-        
-        if (file_put_contents($testFile, 'test') !== false) {
-            unlink($testFile);
-            
-            // Check if PhpSpreadsheet is available
-            if (class_exists('PhpOffice\PhpSpreadsheet\IOFactory')) {
-                return [
-                    'name' => 'File Upload Capabilities',
-                    'status' => 'passed',
-                    'message' => 'File system writable and PhpSpreadsheet available',
-                    'details' => "Upload directory: {$uploadDir['basedir']}"
-                ];
-            } else {
-                return [
-                    'name' => 'File Upload Capabilities',
-                    'status' => 'warning',
-                    'message' => 'File system writable but PhpSpreadsheet missing',
-                    'details' => 'Excel upload functionality may not work'
-                ];
-            }
-        } else {
-            return [
-                'name' => 'File Upload Capabilities',
-                'status' => 'failed',
-                'message' => 'Upload directory not writable',
-                'details' => "Cannot write to: {$uploadDir['basedir']}"
-            ];
-        }
-    } catch (Exception $e) {
-        return [
-            'name' => 'File Upload Capabilities',
-            'status' => 'failed',
-            'message' => 'File upload test failed: ' . $e->getMessage(),
-            'details' => $e->getTraceAsString()
-        ];
-    }
-}
-
-function testSecurityChecks(): array {
-    try {
-        $checks = [];
-        
-        // Check if user has proper capabilities
-        if (current_user_can('manage_options')) {
-            $checks[] = 'User capabilities: OK';
-        } else {
-            $checks[] = 'User capabilities: FAILED';
-        }
-        
-        // Check nonce functionality
-        $nonce = wp_create_nonce('test_action');
-        if (wp_verify_nonce($nonce, 'test_action')) {
-            $checks[] = 'Nonce verification: OK';
-        } else {
-            $checks[] = 'Nonce verification: FAILED';
-        }
-        
-        // Check sanitization functions
-        $test_input = '<script>alert("xss")</script>';
-        $sanitized = sanitize_text_field($test_input);
-        if ($sanitized !== $test_input) {
-            $checks[] = 'Input sanitization: OK';
-        } else {
-            $checks[] = 'Input sanitization: FAILED';
-        }
-        
-        $failed = array_filter($checks, function($check) {
-            return strpos($check, 'FAILED') !== false;
-        });
-        
-        if (empty($failed)) {
-            return [
-                'name' => 'Security Checks',
-                'status' => 'passed',
-                'message' => 'All security checks passed',
-                'details' => implode("\n", $checks)
-            ];
-        } else {
-            return [
-                'name' => 'Security Checks',
-                'status' => 'failed',
-                'message' => count($failed) . ' security check(s) failed',
-                'details' => implode("\n", $checks)
-            ];
-        }
-    } catch (Exception $e) {
-        return [
-            'name' => 'Security Checks',
-            'status' => 'failed',
-            'message' => 'Security test failed: ' . $e->getMessage(),
-            'details' => $e->getTraceAsString()
-        ];
-    }
-}
