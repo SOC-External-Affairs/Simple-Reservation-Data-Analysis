@@ -18,6 +18,7 @@
                     <th><a href="{{ admin_url('admin.php?page=reservations&orderby=dateOfEvent&order=' ~ (orderby == 'dateOfEvent' and order == 'asc' ? 'desc' : 'asc') ~ (current_page > 1 ? '&paged=' ~ current_page : '')) }}">Date</a></th>
                     <th><a href="{{ admin_url('admin.php?page=reservations&orderby=locationName&order=' ~ (orderby == 'locationName' and order == 'asc' ? 'desc' : 'asc') ~ (current_page > 1 ? '&paged=' ~ current_page : '')) }}">Location</a></th>
                     <th><a href="{{ admin_url('admin.php?page=reservations&orderby=duration&order=' ~ (orderby == 'duration' and order == 'asc' ? 'desc' : 'asc') ~ (current_page > 1 ? '&paged=' ~ current_page : '')) }}">Duration</a></th>
+                    <th>When Inserted</th>
                     <th>Hash</th>
                     <th>Actions</th>
                 </tr>
@@ -29,6 +30,7 @@
                     <td>{{ reservation.dateOfEvent }}</td>
                     <td>{{ reservation.locationName }}</td>
                     <td>{{ reservation.duration }} hrs</td>
+                    <td>{{ reservation.whenInserted ?? 'N/A' }}</td>
                     <td>{{ reservation.hash[:8] }}...</td>
                     <td>
                         <a href="{{ admin_url('admin.php?page=reservations&action=edit&id=' ~ reservation.id) }}" class="button">Edit</a>
