@@ -179,7 +179,8 @@ add_action('admin_post_create_reservation', function() {
         sanitize_text_field($_POST['groupName']),
         sanitize_text_field($_POST['dateOfEvent']),
         sanitize_text_field($_POST['locationName']),
-        intval($_POST['duration'])
+        intval($_POST['duration']),
+        !empty($_POST['whenInserted']) ? sanitize_text_field($_POST['whenInserted']) : null
     );
     
     saveReservation($reservation);
@@ -197,7 +198,8 @@ add_action('admin_post_update_reservation', function() {
         sanitize_text_field($_POST['groupName']),
         sanitize_text_field($_POST['dateOfEvent']),
         sanitize_text_field($_POST['locationName']),
-        intval($_POST['duration'])
+        intval($_POST['duration']),
+        !empty($_POST['whenInserted']) ? sanitize_text_field($_POST['whenInserted']) : null
     );
     
     wp_safe_redirect(admin_url('admin.php?page=reservations&message=updated'));
@@ -250,7 +252,8 @@ function getAllReservations(): array {
             get_post_meta($post->ID, 'groupName', true),
             get_post_meta($post->ID, 'dateOfEvent', true),
             get_post_meta($post->ID, 'locationName', true),
-            get_post_meta($post->ID, 'duration', true)
+            get_post_meta($post->ID, 'duration', true),
+            get_post_meta($post->ID, 'whenInserted', true) ?: null
         );
         $reservation->setId($post->ID);
         $reservations[] = $reservation;
@@ -274,7 +277,8 @@ function getAllReservationsPaginated(int $page, int $per_page, string $orderby =
             get_post_meta($post->ID, 'groupName', true),
             get_post_meta($post->ID, 'dateOfEvent', true),
             get_post_meta($post->ID, 'locationName', true),
-            get_post_meta($post->ID, 'duration', true)
+            get_post_meta($post->ID, 'duration', true),
+            get_post_meta($post->ID, 'whenInserted', true) ?: null
         );
         $reservation->setId($post->ID);
         $all_reservations[] = $reservation;
@@ -329,7 +333,8 @@ function getReservation(int $id): ?Reservation {
         get_post_meta($id, 'groupName', true),
         get_post_meta($id, 'dateOfEvent', true),
         get_post_meta($id, 'locationName', true),
-        get_post_meta($id, 'duration', true)
+        get_post_meta($id, 'duration', true),
+        get_post_meta($id, 'whenInserted', true) ?: null
     );
     $reservation->setId($id);
     return $reservation;
@@ -345,13 +350,14 @@ function saveReservation(Reservation $reservation): void {
             'dateOfEvent' => $reservation->getDateOfEvent(),
             'locationName' => $reservation->getLocationName(),
             'duration' => $reservation->getDuration(),
+            'whenInserted' => $reservation->getWhenInserted(),
             'hash' => $reservation->getHash()
         ]
     ]);
 }
 
-function updateReservation(int $id, string $groupName, string $dateOfEvent, string $locationName, int $duration): void {
-    $reservation = new Reservation($groupName, $dateOfEvent, $locationName, $duration);
+function updateReservation(int $id, string $groupName, string $dateOfEvent, string $locationName, int $duration, ?string $whenInserted = null): void {
+    $reservation = new Reservation($groupName, $dateOfEvent, $locationName, $duration, $whenInserted);
     
     wp_update_post([
         'ID' => $id,
@@ -362,6 +368,7 @@ function updateReservation(int $id, string $groupName, string $dateOfEvent, stri
     update_post_meta($id, 'dateOfEvent', $dateOfEvent);
     update_post_meta($id, 'locationName', $locationName);
     update_post_meta($id, 'duration', $duration);
+    update_post_meta($id, 'whenInserted', $whenInserted);
     update_post_meta($id, 'hash', $reservation->getHash());
 }
 
@@ -414,6 +421,9 @@ function processExcelUpload(array $file, array $params): array {
                 }
                 $duration = intval(preg_replace('/[^0-9.]/', '', (string)$durationValue));
                 
+                $whenInserted = $worksheet->getCell($params['when_inserted_column'] . $row)->getFormattedValue();
+                $whenInserted = !empty(trim($whenInserted)) ? trim($whenInserted) : null;
+                
                 // Skip empty rows (all fields empty)
                 if (empty($groupName) && empty($dateOfEvent) && empty($locationName) && $duration <= 0) {
                     $stats['total_rows']--; // Don't count empty rows
@@ -425,6 +435,7 @@ function processExcelUpload(array $file, array $params): array {
                 if (empty($dateOfEvent)) $errors[] = "Event Date is missing (value: '{$dateOfEvent}')";
                 if (empty($locationName)) $errors[] = "Location is missing (value: '{$locationName}')";
                 if ($duration <= 0) $errors[] = "Duration is missing or invalid (value: '{$durationValue}' -> {$duration})";
+                if (empty($whenInserted)) $errors[] = "When Inserted is missing (value: '{$whenInserted}');";
                 
                 if (!empty($errors)) {
                     $stats['errors']++;
@@ -432,7 +443,7 @@ function processExcelUpload(array $file, array $params): array {
                     continue;
                 }
                 
-                $reservation = new Reservation($groupName, $dateOfEvent, $locationName, $duration);
+                $reservation = new Reservation($groupName, $dateOfEvent, $locationName, $duration, $whenInserted);
                 
                 if (in_array($reservation->getHash(), $existingHashes)) {
                     $stats['duplicates']++;

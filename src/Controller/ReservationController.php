@@ -38,7 +38,8 @@ class ReservationController
             sanitize_text_field($_POST['groupName']),
             sanitize_text_field($_POST['dateOfEvent']),
             sanitize_text_field($_POST['locationName']),
-            intval($_POST['duration'])
+            intval($_POST['duration']),
+            !empty($_POST['whenInserted']) ? sanitize_text_field($_POST['whenInserted']) : null
         );
 
         $this->saveReservation($reservation);
@@ -60,7 +61,8 @@ class ReservationController
                 get_post_meta($post->ID, 'groupName', true),
                 get_post_meta($post->ID, 'dateOfEvent', true),
                 get_post_meta($post->ID, 'locationName', true),
-                get_post_meta($post->ID, 'duration', true)
+                get_post_meta($post->ID, 'duration', true),
+                get_post_meta($post->ID, 'whenInserted', true) ?: null
             );
             $reservation->setId($post->ID);
             $reservations[] = $reservation;
@@ -80,6 +82,7 @@ class ReservationController
                 'dateOfEvent' => $reservation->getDateOfEvent(),
                 'locationName' => $reservation->getLocationName(),
                 'duration' => $reservation->getDuration(),
+                'whenInserted' => $reservation->getWhenInserted(),
                 'hash' => $reservation->getHash()
             ]
         ]);

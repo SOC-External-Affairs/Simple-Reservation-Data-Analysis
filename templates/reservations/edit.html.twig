@@ -23,6 +23,10 @@
                 <th><label for="duration">Duration (hours)</label></th>
                 <td><input type="number" id="duration" name="duration" value="{{ reservation.duration }}" class="regular-text" required></td>
             </tr>
+            <tr>
+                <th><label for="whenInserted">When Inserted</label></th>
+                <td><input type="datetime-local" id="whenInserted" name="whenInserted" value="{{ reservation.whenInserted }}" class="regular-text"></td>
+            </tr>
         </table>
         
         <p class="submit">

@@ -62,6 +62,18 @@
                 </td>
             </tr>
             <tr>
+                <th><label for="when_inserted_column">When Inserted Column</label></th>
+                <td>
+                    <select id="when_inserted_column" name="when_inserted_column" class="regular-text" required>
+                        <option value="">Select Column</option>
+                        {% for letter in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'|split('') %}
+                        <option value="{{ letter }}">{{ letter }}</option>
+                        {% endfor %}
+                        <option value="AA">AA</option>
+                    </select>
+                </td>
+            </tr>
+            <tr>
                 <th><label for="start_row">Start Row</label></th>
                 <td>
                     <input type="number" id="start_row" name="start_row" value="2" min="1" class="regular-text" required>
